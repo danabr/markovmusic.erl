@@ -1,0 +1,5 @@
+-define(META_EVENT, 255).
+-define(NOTE_OFF, 8:4).
+-define(NOTE_ON, 9:4).
+-define(CONTROLLER_EVENT, 11:4).
+-define(PROGRAM_CHANGE, 12:4).

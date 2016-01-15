@@ -1,17 +1,13 @@
 -module(midi_parse).
 
--define(META_EVENT, 255).
--define(NOTE_OFF, 8:4).
--define(NOTE_ON, 9:4).
--define(CONTROLLER_EVENT, 11:4).
--define(PROGRAM_CHANGE, 12:4).
-
 -type parse_error() :: {parse_error, Rsn::term()}.
 -type io_error() :: {error, Rsn::term()}.
 
 -export([ parse_binary/1
         , parse_file/1
         ]).
+
+-include("midi.hrl").
 
 -spec parse_file(File::string()) -> {ok, midi:song()} | parse_error() | io_error().
 parse_file(File) when is_list(File) ->
@@ -65,6 +61,7 @@ parse_events(Bin0) ->
 	{Event, Bin2} = parse_event(Offset, Bin1),
 	[Event|parse_events(Bin2)].
 
+%% TODO: Is it correct that everything should be parsed as 7 bit bytes?
 -spec extract_time_offset(binary()) -> {midi:offset(), binary()}.
 extract_time_offset(<<1:1, O1:7, 1:1, O2:7, 1:1, O3:7, 0:1, O4:7,
 											Bin/binary>>)                                  ->
@@ -82,6 +79,7 @@ extract_time_offset(_)                                               ->
 	parse_error(time_offset).
 
 -spec parse_event(midi:offset(), binary()) -> {midi:event(), binary()}.
+%% TODO: Is the meta event data length variable length?
 parse_event(Offset, <<?META_EVENT, Type, Length, Bin0/binary>>)                           ->
 	parse_meta_event(Offset, Type, Length, Bin0);
 parse_event(Offset, <<?NOTE_OFF, Channel:4, Note, Velocity, Bin0/binary>>)                ->

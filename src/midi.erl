@@ -100,22 +100,24 @@ extract_time_offset(_)                                               ->
 	parse_error(time_offset).
 
 -spec parse_event(offset(), binary()) -> {event(), binary()}.
-parse_event(Offset, <<?META_EVENT, Type, Length, Bin0/binary>>) ->
+parse_event(Offset, <<?META_EVENT, Type, Length, Bin0/binary>>)                           ->
 	parse_meta_event(Offset, Type, Length, Bin0);
-parse_event(Offset, <<?NOTE_OFF, Channel:4, Note, Velocity, Bin0/binary>>) ->
+parse_event(Offset, <<?NOTE_OFF, Channel:4, Note, Velocity, Bin0/binary>>)                ->
 	Event = {event, Offset, {note_off, Channel, Note, Velocity}},
 	{Event, Bin0};
-parse_event(Offset, <<?NOTE_ON, Channel:4, Note, Velocity, Bin0/binary>>) ->
+parse_event(Offset, <<?NOTE_ON, Channel:4, Note, Velocity, Bin0/binary>>)                 ->
 	Event = {event, Offset, {note_on, Channel, Note, Velocity}},
 	{Event, Bin0};
 parse_event(Offset, <<?CONTROLLER_EVENT, Channel:4, ControllerType, Value, Bin0/binary>>) ->
 	Event = {event, Offset, {controller_event, Channel, ControllerType, Value}},
 	{Event, Bin0};
-parse_event(Offset, <<?PROGRAM_CHANGE, Channel:4, ProgramNo, Bin0/binary>>) ->
+parse_event(Offset, <<?PROGRAM_CHANGE, Channel:4, ProgramNo, Bin0/binary>>)               ->
 	Event = {event, Offset, {program_change, Channel, ProgramNo}},
 	{Event, Bin0};
-parse_event(Offset, <<Type:4, Channel:4, _Bin0/binary>>) ->
-	throw({unknown_event, {Offset, Type, Channel}}).
+parse_event(Offset, <<Type:4, Channel:4, _Bin0/binary>>)                                  ->
+	parse_error({unknown_event, {Offset, Type, Channel}});
+parse_event(_Offset, _)                                                                   ->
+  parse_error(unknown_event).
 
 parse_meta_event(Offset, Type, Length, Bin0) ->
 	case Bin0 of

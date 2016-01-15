@@ -1,5 +1,11 @@
 -module(midi).
 
+-define(META_EVENT, 255).
+-define(NOTE_OFF, 8:4).
+-define(NOTE_ON, 9:4).
+-define(CONTROLLER_EVENT, 11:4).
+-define(PROGRAM_CHANGE, 12:4).
+
 -type song() :: {midi, {format(), time_division(), [track()]}}.
 -type format() :: 0 | 1 | 2.
 -type time_division() :: non_neg_integer().
@@ -93,22 +99,22 @@ extract_time_offset(_)                                               ->
 	parse_error(time_offset).
 
 -spec parse_event(offset(), binary()) -> {event(), binary()}.
-parse_event(Offset, <<255, Type, Length, Bin0/binary>>) ->
+parse_event(Offset, <<?META_EVENT, Type, Length, Bin0/binary>>) ->
 	parse_meta_event(Offset, Type, Length, Bin0);
-parse_event(Offset, <<8:4, Channel:4, Note, Velocity, Bin0/binary>>) ->
+parse_event(Offset, <<?NOTE_OFF, Channel:4, Note, Velocity, Bin0/binary>>) ->
 	Event = {note_off_event, {Offset, Channel, Note, Velocity}},
 	{Event, Bin0};
-parse_event(Offset, <<9:4, Channel:4, Note, Velocity, Bin0/binary>>) ->
+parse_event(Offset, <<?NOTE_ON, Channel:4, Note, Velocity, Bin0/binary>>) ->
 	Event = {note_on_event, {Offset, Channel, Note, Velocity}},
 	{Event, Bin0};
-parse_event(Offset, <<11:4, Channel:4, ControllerType, Value, Bin0/binary>>) ->
+parse_event(Offset, <<?CONTROLLER_EVENT, Channel:4, ControllerType, Value, Bin0/binary>>) ->
 	Event = {controller_event, {Offset, Channel, ControllerType, Value}},
 	{Event, Bin0};
-parse_event(Offset, <<12:4, Channel:4, ProgramNo, Bin0/binary>>) ->
+parse_event(Offset, <<?PROGRAM_CHANGE, Channel:4, ProgramNo, Bin0/binary>>) ->
 	Event = {program_change_event, {Offset, Channel, ProgramNo}},
 	{Event, Bin0};
-parse_event(Offset, <<Type:4, Channel:4, P1, P2, _Bin0/binary>>) ->
-	throw({not_implemented, {Offset, Type, Channel, P1, P2}}).
+parse_event(Offset, <<Type:4, Channel:4, _Bin0/binary>>) ->
+	throw({unknown_event, {Offset, Type, Channel}}).
 
 parse_meta_event(Offset, Type, Length, Bin0) ->
 	case Bin0 of

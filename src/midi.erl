@@ -45,13 +45,15 @@ parse_midi(<<"MThd", ChunkSize:32, Format:16, NumTracks:16, TimeDivision:16,
 						 Rest/binary>>) when ChunkSize =:= 6 ->
 	Tracks = parse_tracks(NumTracks, Rest),
 	{midi, {validate_format(Format), TimeDivision, Tracks}};
-parse_midi(_) -> throw({parse_error, bad_midi_header}).
+parse_midi(_)                                    ->
+  parse_error(bad_midi_header).
 
 validate_format(N) when N >= 0 andalso N < 3 -> N;
-validate_format(N) -> throw({parse_error, {bad_format, N}}).
+validate_format(N)                           -> parse_error({bad_format, N}).
 
-parse_tracks(0, <<>>) -> [];
-parse_tracks(0, _Bin) -> throw({parse_error, garbage_after_tracks});
+parse_tracks(0, <<>>)                                     -> [];
+parse_tracks(0, _Bin)                                     ->
+  parse_error(garbage_after_tracks);
 parse_tracks(N, <<"MTrk", TrackLength:32, Rest0/binary>>) ->
 	case Rest0 of
 		<<EventData:TrackLength/binary, Rest/binary>> ->
@@ -60,8 +62,8 @@ parse_tracks(N, <<"MTrk", TrackLength:32, Rest0/binary>>) ->
 		_WrongSize
 			-> throw({parse_error, track})
 	end;
-parse_tracks(_, _) ->
-	throw({parse_error, track}).
+parse_tracks(_, _)                                        ->
+	parse_error(track).
 
 parse_track(<<>>) -> [];
 parse_track(Bin0) ->
@@ -70,7 +72,7 @@ parse_track(Bin0) ->
 	[Event|parse_track(Bin2)].
 
 extract_time_offset(<<1:1, O1:7, 1:1, O2:7, 1:1, O3:7, 0:1, O4:7,
-											Bin/binary>>) ->
+											Bin/binary>>)                                  ->
 	Offset = (O1 bsl 21) band (O2 bsl 14) band (O3 bsl 7) band O4,
 	{Offset, Bin};
 extract_time_offset(<<1:1, O1:7, 1:1, O2:7, 0:1, O3:7, Bin/binary>>) ->
@@ -79,10 +81,10 @@ extract_time_offset(<<1:1, O1:7, 1:1, O2:7, 0:1, O3:7, Bin/binary>>) ->
 extract_time_offset(<<1:1, O1:7, 0:1, O2:7, Bin/binary>>) ->
 	Offset = (O1 bsl 7) band O2,
 	{Offset, Bin};
-extract_time_offset(<<0:1, Offset:7, Bin/binary>>) ->
+extract_time_offset(<<0:1, Offset:7, Bin/binary>>)                   ->
 	{Offset, Bin};
-extract_time_offset(_) ->
-	throw({parse_error, time_offset}).
+extract_time_offset(_)                                               ->
+	parse_error(time_offset).
 
 parse_event(Offset, <<255, Type, Length, Bin0/binary>>) ->
 	parse_meta_event(Offset, Type, Length, Bin0);
@@ -106,6 +108,8 @@ parse_meta_event(Offset, Type, Length, Bin0) ->
 		<<Data:Length/binary, Bin/binary>> ->
 			Event = {meta_event, {Offset, Type, Data}},
 			{Event, Bin};
-		_                             ->
-			throw({parse_error, bad_meta_event_data_size})
+		_WrongSize                         ->
+			parse_error(bad_meta_event_data_size)
 	end.
+
+parse_error(Error) -> throw({parse_error, Error}).

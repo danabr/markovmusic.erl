@@ -10,12 +10,13 @@
 -type format() :: 0 | 1 | 2.
 -type time_division() :: non_neg_integer().
 -type track() :: {track, [event()]}.
--type event() :: {meta_event, {offset(), meta_event_type(), Data::binary()}} |
-                 {note_off_event, {offset(), channel(), note(), velocity()}} |
-                 {note_on_event, {offset(), channel(), note(), velocity()}} |
-                 {controller_event, {offset(), channel(), controller_type(),
-                                     controller_value()}} |
-                 {program_change_event, {offset(), channel(), program_number()}}.
+-type event() :: {event, offset(), event_data()}.
+-type event_data() :: {meta, meta_event_type(), Data::binary()} |
+                      {note_off, channel(), note(), velocity()} |
+                      {note_on, channel(), note(), velocity()} |
+                      {controller_event, channel(), controller_type(),
+                                         controller_value()} |
+                      {program_change, channel(), program_number()}.
 -type offset() :: non_neg_integer().
 -type meta_event_type() :: byte().
 -type channel() :: 0-15.
@@ -102,16 +103,16 @@ extract_time_offset(_)                                               ->
 parse_event(Offset, <<?META_EVENT, Type, Length, Bin0/binary>>) ->
 	parse_meta_event(Offset, Type, Length, Bin0);
 parse_event(Offset, <<?NOTE_OFF, Channel:4, Note, Velocity, Bin0/binary>>) ->
-	Event = {note_off_event, {Offset, Channel, Note, Velocity}},
+	Event = {event, Offset, {note_off, Channel, Note, Velocity}},
 	{Event, Bin0};
 parse_event(Offset, <<?NOTE_ON, Channel:4, Note, Velocity, Bin0/binary>>) ->
-	Event = {note_on_event, {Offset, Channel, Note, Velocity}},
+	Event = {event, Offset, {note_on, Channel, Note, Velocity}},
 	{Event, Bin0};
 parse_event(Offset, <<?CONTROLLER_EVENT, Channel:4, ControllerType, Value, Bin0/binary>>) ->
-	Event = {controller_event, {Offset, Channel, ControllerType, Value}},
+	Event = {event, Offset, {controller_event, Channel, ControllerType, Value}},
 	{Event, Bin0};
 parse_event(Offset, <<?PROGRAM_CHANGE, Channel:4, ProgramNo, Bin0/binary>>) ->
-	Event = {program_change_event, {Offset, Channel, ProgramNo}},
+	Event = {event, Offset, {program_change, Channel, ProgramNo}},
 	{Event, Bin0};
 parse_event(Offset, <<Type:4, Channel:4, _Bin0/binary>>) ->
 	throw({unknown_event, {Offset, Type, Channel}}).
@@ -119,7 +120,7 @@ parse_event(Offset, <<Type:4, Channel:4, _Bin0/binary>>) ->
 parse_meta_event(Offset, Type, Length, Bin0) ->
 	case Bin0 of
 		<<Data:Length/binary, Bin/binary>> ->
-			Event = {meta_event, {Offset, Type, Data}},
+			Event = {event, Offset, {meta, Type, Data}},
 			{Event, Bin};
 		_WrongSize                         ->
 			parse_error(bad_meta_event_data_size)

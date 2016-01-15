@@ -3,21 +3,21 @@
 -type parse_error() :: {parse_error, Rsn::term()}.
 -type io_error() :: {error, Rsn::term()}.
 
--export([ parse_binary/1
-        , parse_file/1
+-export([ binary/1
+        , file/1
         ]).
 
 -include("midi.hrl").
 
--spec parse_file(File::string()) -> {ok, midi:song()} | parse_error() | io_error().
-parse_file(File) when is_list(File) ->
+-spec file(File::string()) -> {ok, midi:song()} | parse_error() | io_error().
+file(File) when is_list(File) ->
 	case file:read_file(File) of
-		{ok, Bin}        -> parse_binary(Bin);
+		{ok, Bin}        -> binary(Bin);
 		{error, _}=Error -> Error
 	end.
 
--spec parse_binary(binary()) -> {ok, midi:song()} | parse_error().
-parse_binary(Bin) ->
+-spec binary(binary()) -> {ok, midi:song()} | parse_error().
+binary(Bin) ->
 	try {ok, parse_midi(Bin)}
 	catch
 		throw:{parse_error,_}=E -> E

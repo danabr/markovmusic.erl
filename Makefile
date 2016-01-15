@@ -1,7 +1,7 @@
-.PHONY: shell
+.PHONY: shell compile
 
-ebin/*.beam:
-	erlc -o ebin/ src/*.erl
+compile:
+	erlc -o ebin/ -Werror src/*.erl
 
-shell:
+shell: compile
 	erl -pa ebin/

@@ -1,22 +1,20 @@
 -module(markovmusic).
 
--define(PREFIX_LENGTH, 2).
+-define(PREFIX_LENGTH, 5).
 
 -export([main/1]).
 
 main(Files) ->
+  random:seed(erlang:now()),
   Songs = load(Files),
-  {TD, Tables} = hd(analyze(Songs)),
-  [Example|_] = Tables,
-  Midi = generate_midi(TD, Example),
-  Bin = midi_generate:binary(Midi),
-  Path = "/tmp/generated.midi",
-  file:write_file(Path, Bin),
-  io:format("MIDI file written to ~s~n.", [Path]).
-
-generate_midi(TimeDivision, PrefixTable) ->
-  Events = prefix_table:generate_entries(PrefixTable),
-  {midi, {1, TimeDivision, [{track, Events}]}}.
+  Generated = generate_midi(analyze(Songs)),
+  WriteF = fun({TD, Midi}) ->
+    Bin = midi_generate:binary(Midi),
+    Path = "/tmp/generated_" ++ integer_to_list(TD) ++ ".midi",
+    ok = file:write_file(Path, Bin),
+    io:format("MIDI file written to ~s~n.", [Path])
+  end,
+  lists:foreach(WriteF, Generated).
 
 %% Internal
 load([])           -> [];
@@ -49,7 +47,7 @@ group([{midi, {_, TimeDivision, _}}=Pivot|Songs]) ->
 analyze_frequencies({TimeDivision, Songs}, PrefixLength) ->
   Tracks = tracks(Songs),
   Results = [analyze_track_frequencies(Track, PrefixLength) || Track <- Tracks],
-  {TimeDivision, Results}.
+  {TimeDivision, merge(Results)}.
 
 tracks(Songs) -> lists:flatten([ music_tracks(Song) || Song <- Songs ]).
 
@@ -67,3 +65,15 @@ analyze_track_frequencies({track, Events}, PrefixLength) ->
   FoldF = fun(Event, Table) -> prefix_table:add(Table, Event) end,
   Table = lists:foldl(FoldF, Table0, Events),
   prefix_table:finish(Table).
+
+merge([])             -> [];
+merge([Table|Tables]) ->
+  lists:foldl(fun prefix_table:merge/2, Table, Tables).
+
+generate_midi(Groups) ->
+  [ {TD, generate_midi(TD, Table)} || {TD, Table} <- Groups ].
+
+generate_midi(TimeDivision, PrefixTable) ->
+  Events = prefix_table:generate_entries(PrefixTable),
+  {midi, {1, TimeDivision, [{track, Events}]}}.
+

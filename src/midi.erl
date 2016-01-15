@@ -3,7 +3,7 @@
 -type song() :: {midi, {format(), time_division(), [track()]}}.
 -type format() :: 0 | 1 | 2.
 -type time_division() :: non_neg_integer().
--type track() :: {track, event()}.
+-type track() :: {track, [event()]}.
 -type event() :: {meta_event, {offset(), meta_event_type(), Data::binary()}} |
                  {note_off_event, {offset(), channel(), note(), velocity()}} |
                  {note_on_event, {offset(), channel(), note(), velocity()}} |
@@ -51,26 +51,32 @@ parse_midi(_)                                    ->
 validate_format(N) when N >= 0 andalso N < 3 -> N;
 validate_format(N)                           -> parse_error({bad_format, N}).
 
+-spec parse_tracks(non_neg_integer(), binary()) -> [track()].
 parse_tracks(0, <<>>)                                     -> [];
 parse_tracks(0, _Bin)                                     ->
   parse_error(garbage_after_tracks);
 parse_tracks(N, <<"MTrk", TrackLength:32, Rest0/binary>>) ->
 	case Rest0 of
 		<<EventData:TrackLength/binary, Rest/binary>> ->
-			Track = {track, parse_track(EventData)},
-			[Track|parse_tracks(N-1, Rest)];
+			[parse_track(EventData)|parse_tracks(N-1, Rest)];
 		_WrongSize
 			-> throw({parse_error, track})
 	end;
 parse_tracks(_, _)                                        ->
 	parse_error(track).
 
-parse_track(<<>>) -> [];
-parse_track(Bin0) ->
+-spec parse_track(binary()) -> track().
+parse_track(Bin) ->
+  {track, parse_events(Bin)}.
+
+-spec parse_events(binary()) -> [event()].
+parse_events(<<>>) -> [];
+parse_events(Bin0) ->
 	{Offset, Bin1} = extract_time_offset(Bin0),
 	{Event, Bin2} = parse_event(Offset, Bin1),
-	[Event|parse_track(Bin2)].
+	[Event|parse_events(Bin2)].
 
+-spec extract_time_offset(binary()) -> {offset(), binary()}.
 extract_time_offset(<<1:1, O1:7, 1:1, O2:7, 1:1, O3:7, 0:1, O4:7,
 											Bin/binary>>)                                  ->
 	Offset = (O1 bsl 21) bor (O2 bsl 14) bor (O3 bsl 7) bor O4,
@@ -86,6 +92,7 @@ extract_time_offset(<<0:1, Offset:7, Bin/binary>>)                   ->
 extract_time_offset(_)                                               ->
 	parse_error(time_offset).
 
+-spec parse_event(offset(), binary()) -> {event(), binary()}.
 parse_event(Offset, <<255, Type, Length, Bin0/binary>>) ->
 	parse_meta_event(Offset, Type, Length, Bin0);
 parse_event(Offset, <<8:4, Channel:4, Note, Velocity, Bin0/binary>>) ->

@@ -1,30 +1,59 @@
 -module(midi).
 
+-type song() :: {midi, {format(), time_division(), [track()]}}.
+-type format() :: 0 | 1 | 2.
+-type time_division() :: non_neg_integer().
+-type track() :: {track, event()}.
+-type event() :: {meta_event, {offset(), meta_event_type(), Data::binary()}} |
+                 {note_off_event, {offset(), channel(), note(), velocity()}} |
+                 {note_on_event, {offset(), channel(), note(), velocity()}} |
+                 {controller_event, {offset(), channel(), controller_type(),
+                                     controller_value()}} |
+                 {program_change_event, {offset(), channel(), program_number()}}.
+-type offset() :: non_neg_integer().
+-type meta_event_type() :: byte().
+-type channel() :: 0-15.
+-type note() :: 0-127.
+-type velocity() :: 0-127.
+-type controller_type() :: 0-127.
+-type controller_value() :: 0-127.
+-type program_number() :: 0-127.
+
+-type parse_error() :: {parse_error, Rsn::term()}.
+-type io_error() :: {error, Rsn::term()}.
+
 -export([parse/1]).
 
+-spec parse(File::string()) -> {ok, song()} | parse_error() | io_error().
 parse(File) when is_list(File) ->
 	case file:read_file(File) of
 		{ok, Bin}        -> parse_binary(Bin);
 		{error, _}=Error -> Error
 	end.
 
+-spec parse_binary(binary()) -> {ok, song()} | parse_error().
 parse_binary(Bin) ->
-	try parse_midi(Bin)
-	catch	
+	try {ok, parse_midi(Bin)}
+	catch
 		throw:{parse_error,_}=E -> E
 	end.
 
+%% Internal
+
+-spec parse_midi(binary()) -> song().
 parse_midi(<<"MThd", ChunkSize:32, Format:16, NumTracks:16, TimeDivision:16,
 						 Rest/binary>>) when ChunkSize =:= 6 ->
 	Tracks = parse_tracks(NumTracks, Rest),
-	{ok, {Format, Tracks, TimeDivision}};
-parse_midi(_) ->
-	{error, {parse_error, bad_midi_header}}.
+	{midi, {validate_format(Format), TimeDivision, Tracks}};
+parse_midi(_) -> throw({parse_error, bad_midi_header}).
+
+validate_format(N) when N >= 0 andalso N < 3 -> N;
+validate_format(N) -> throw({parse_error, {bad_format, N}}).
 
 parse_tracks(0, <<>>) -> [];
 parse_tracks(0, _Bin) -> throw({parse_error, garbage_after_tracks});
 parse_tracks(N, <<"MTrk", TrackLength:32, Rest0/binary>>) ->
-	case Rest0 of	
+	case Rest0 of
 		<<EventData:TrackLength/binary, Rest/binary>> ->
 			Track = {track, parse_track(EventData)},
 			[Track|parse_tracks(N-1, Rest)];
@@ -38,7 +67,7 @@ parse_track(<<>>) -> [];
 parse_track(Bin0) ->
 	{Offset, Bin1} = extract_time_offset(Bin0),
 	{Event, Bin2} = parse_event(Offset, Bin1),
-	[Event|parse_track(Bin2)].	
+	[Event|parse_track(Bin2)].
 
 extract_time_offset(<<1:1, O1:7, 1:1, O2:7, 1:1, O3:7, 0:1, O4:7,
 											Bin/binary>>) ->
@@ -73,7 +102,7 @@ parse_event(Offset, <<Type:4, Channel:4, P1, P2, _Bin0/binary>>) ->
 	throw({not_implemented, {Offset, Type, Channel, P1, P2}}).
 
 parse_meta_event(Offset, Type, Length, Bin0) ->
-	case Bin0 of	
+	case Bin0 of
 		<<Data:Length/binary, Bin/binary>> ->
 			Event = {meta_event, {Offset, Type, Data}},
 			{Event, Bin};

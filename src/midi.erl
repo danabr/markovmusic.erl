@@ -73,13 +73,13 @@ parse_track(Bin0) ->
 
 extract_time_offset(<<1:1, O1:7, 1:1, O2:7, 1:1, O3:7, 0:1, O4:7,
 											Bin/binary>>)                                  ->
-	Offset = (O1 bsl 21) band (O2 bsl 14) band (O3 bsl 7) band O4,
+	Offset = (O1 bsl 21) bor (O2 bsl 14) bor (O3 bsl 7) bor O4,
 	{Offset, Bin};
 extract_time_offset(<<1:1, O1:7, 1:1, O2:7, 0:1, O3:7, Bin/binary>>) ->
-	Offset = (O1 bsl 14) band (O2 bsl 7) band O3,
+	Offset = (O1 bsl 14) bor (O2 bsl 7) bor O3,
 	{Offset, Bin};
 extract_time_offset(<<1:1, O1:7, 0:1, O2:7, Bin/binary>>) ->
-	Offset = (O1 bsl 7) band O2,
+	Offset = (O1 bsl 7) bor O2,
 	{Offset, Bin};
 extract_time_offset(<<0:1, Offset:7, Bin/binary>>)                   ->
 	{Offset, Bin};

@@ -2,7 +2,7 @@
 
 -export([ analyze_files/2
         , analyze_songs/2
-        , generate_midi/1
+        , generate/1
         ]).
 
 -type analysis() :: {analysis, midi:time_division(), prefix_table:table(_)}.
@@ -22,6 +22,11 @@ analyze_songs(PrefixLength, [_|_]=Songs) ->
     true  -> {ok, do_analyze(PrefixLength, Songs)};
     false -> {error, different_time_division}
   end.
+
+-spec generate(analysis()) -> midi:song().
+generate({analysis, TimeDivision, PrefixTable}) ->
+  Events = prefix_table:generate_entries(PrefixTable),
+  {midi, {1, TimeDivision, [{track, Events}]}}.
 
 %% Internal
 load(Files) -> load(Files, []).
@@ -70,11 +75,4 @@ analyze_track_frequencies({track, Events}, PrefixLength) ->
 merge([])             -> [];
 merge([Table|Tables]) ->
   lists:foldl(fun prefix_table:merge/2, Table, Tables).
-
-generate_midi(Groups) ->
-  [ {TD, generate_midi(TD, Table)} || {TD, Table} <- Groups ].
-
-generate_midi(TimeDivision, PrefixTable) ->
-  Events = prefix_table:generate_entries(PrefixTable),
-  {midi, {1, TimeDivision, [{track, Events}]}}.
 

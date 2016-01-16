@@ -19,6 +19,10 @@ run_command({generate, AnalysisFile, OutFile}) ->
     {ok, Analysis} -> write_midi(OutFile, markovmusic:generate(Analysis));
     {error, _}     -> io:format("Failed to read analysis file.~n")
   end;
+run_command({invert, MidiFile, OutFile})       ->
+  {ok, Song} = midi_parse:file(MidiFile),
+  Inverted = markovmusic:invert(Song),
+  write_midi(OutFile, Inverted);
 run_command({help, undefined})                 -> print_usage();
 run_command({help, Error}) when is_list(Error) ->
   io:format("Error: ~s~n", [Error]),
@@ -62,6 +66,8 @@ parse_args(["generate", AnalysisFile, OutFile])    ->
   {generate, AnalysisFile, OutFile};
 parse_args(["generate"|_])                         ->
   help();
+parse_args(["invert", MidiFile, OutFile])          ->
+  {invert, MidiFile, OutFile};
 parse_args([A|_])                                  ->
   help("Unknwon command " ++ A);
 parse_args([])                                     ->
@@ -96,6 +102,7 @@ print_usage() ->
           , program() ++ " analyze [--prefix-length <n>] "
                          " [--out <analysis-file>] <midi files>"
           , program() ++ " generate <analysis-file> <output-file>"
+          , program() ++ " invert <midi-file> <output-file>"
           ],
   Print = fun(Line) -> io:format("~s~n", [Line]) end,
   lists:foreach(Print, Lines).

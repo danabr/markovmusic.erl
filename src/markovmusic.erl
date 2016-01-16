@@ -3,6 +3,7 @@
 -export([ analyze_files/2
         , analyze_songs/2
         , generate/1
+        , invert/1
         ]).
 
 -type analysis() :: {analysis, midi:time_division(), prefix_table:table(_)}.
@@ -27,6 +28,11 @@ analyze_songs(PrefixLength, [_|_]=Songs) ->
 generate({analysis, TimeDivision, PrefixTable}) ->
   Events = prefix_table:generate_entries(PrefixTable),
   {midi, {1, TimeDivision, [{track, Events}]}}.
+
+-spec invert(midi:song()) -> midi:song().
+invert({midi, {Format, TimeDivision, Tracks}}) ->
+  NewTracks = lists:map(fun invert_track/1, Tracks),
+  {midi, {Format, TimeDivision, NewTracks}}.
 
 %% Internal
 load(Files) -> load(Files, []).
@@ -76,3 +82,34 @@ merge([])             -> [];
 merge([Table|Tables]) ->
   lists:foldl(fun prefix_table:merge/2, Table, Tables).
 
+
+invert_track({track, Events}) ->
+  {track, lists:map(fun invert_event/1, Events)}.
+
+invert_event({event, Offset, {note_on, Channel, Note, Velocity}})  ->
+  NewNote = invert_note(Note),
+  io:format("~p -> ~p~n", [Note, NewNote]),
+  {event, Offset, {note_on, Channel, NewNote, Velocity}};
+invert_event({event, Offset, {note_off, Channel, Note, Velocity}}) ->
+  NewNote = invert_note(Note),
+  {event, Offset, {note_off, Channel, NewNote, Velocity}};
+invert_event(Event)                                                ->
+  Event.
+
+invert_note(N) ->
+  NoteNumber = N rem 12,
+  Octave = N - NoteNumber,
+  Octave + invert_note_number(NoteNumber).
+
+invert_note_number(0) -> 11;
+invert_note_number(1) -> 10;
+invert_note_number(2) -> 9;
+invert_note_number(3) -> 8;
+invert_note_number(4) -> 7;
+invert_note_number(5) -> 6;
+invert_note_number(6) -> 5;
+invert_note_number(7) -> 4;
+invert_note_number(8) -> 3;
+invert_note_number(9) -> 2;
+invert_note_number(10) -> 1;
+invert_note_number(11) -> 0.

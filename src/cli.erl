@@ -77,6 +77,8 @@ analyze_args(["--prefix-length", LengthStr | Args], Opts) ->
     _:badarg ->
       {error, "Prefix length must be a positive integer."}
   end;
+analyze_args(["--out", OutFile | Args], Opts)             ->
+  analyze_args(Args, [{output_file, OutFile}|Opts]);
 analyze_args(["--" ++ Opt|_Args], _Opts)                  ->
   {error, "Unknown argument " ++ Opt ++ "."};
 analyze_args([_|_]=Files, Opts)                           ->
@@ -90,7 +92,8 @@ help(Error) -> {help, Error}.
 
 print_usage() ->
   Lines = [ "Usage:"
-          , program() ++ " analyze [--prefix-length n] <midi files>"
+          , program() ++ " analyze [--prefix-length <n>] "
+                         " [--out <analysis-file>] <midi files>"
           , program() ++ " generate <analysis-file> <output-file>"
           ],
   Print = fun(Line) -> io:format("~s~n", [Line]) end,

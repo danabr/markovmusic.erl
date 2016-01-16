@@ -3,5 +3,4 @@
 %%! -env ERL_LIBS ../markovmusic.erl/
 -mode(compile).
 
-main(Args) -> markovmusic:main(Args).
-
+main(Args) -> cli:main(Args).

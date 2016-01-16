@@ -1,53 +1,54 @@
 -module(markovmusic).
 
--define(PREFIX_LENGTH, 5).
+-export([ analyze_files/2
+        , analyze_songs/2
+        , generate_midi/1
+        ]).
 
--export([main/1]).
+-type analysis() :: {analysis, midi:time_division(), prefix_table:table(_)}.
 
-main(Files) ->
-  random:seed(erlang:now()),
-  Songs = load(Files),
-  Generated = generate_midi(analyze(Songs)),
-  WriteF = fun({TD, Midi}) ->
-    Bin = midi_generate:binary(Midi),
-    Path = "/tmp/generated_" ++ integer_to_list(TD) ++ ".midi",
-    ok = file:write_file(Path, Bin),
-    io:format("MIDI file written to ~s~n.", [Path])
-  end,
-  lists:foreach(WriteF, Generated).
-
-%% Internal
-load([])           -> [];
-load([File|Files]) ->
-  case midi_parse:file(File) of
-    {ok, Midi}       ->
-      [Midi|load(Files)];
-    {parse_error, _} ->
-      io:format("Failed to parse ~p.~n", [File]),
-      load(Files);
-    {error, _}       ->
-      io:format("Failed to open ~p.~n", [File]),
-      load(Files)
+-spec analyze_files(pos_integer(), [string()]) ->
+        {ok, analysis()} | {error, term()}.
+analyze_files(PrefixLength, [_|_]=Files) ->
+  case load(Files) of
+    {ok, Songs}      -> analyze_songs(PrefixLength, Songs);
+    {error, _}=Error -> Error
   end.
 
-%% Analyze a collection of midi songs.
-%% Produces a list of probability chains, one per time division
-%% value detected in the midi files.
-analyze(Songs) ->
-  Groups = group(Songs),
-  [analyze_frequencies(Group, ?PREFIX_LENGTH) || Group <- Groups].
+-spec analyze_songs(pos_integer(), [midi:song()]) ->
+        {ok, analysis()} | {error, different_time_division}.
+analyze_songs(PrefixLength, [_|_]=Songs) ->
+  case all_same_time_division(Songs) of
+    true  -> {ok, do_analyze(PrefixLength, Songs)};
+    false -> {error, different_time_division}
+  end.
 
--spec group([midi:song()]) -> [{midi:time_division(), [midi:song()]}].
-group([])                                         -> [];
-group([{midi, {_, TimeDivision, _}}=Pivot|Songs]) ->
+%% Internal
+load(Files) -> load(Files, []).
+
+load([], Songs)           -> {ok, Songs};
+load([File|Files], Songs) ->
+  case midi_parse:file(File) of
+    {ok, Song}       -> load(Files, [Song|Songs]);
+    {parse_error, _} -> {error, {parse_error, File}};
+    {error, _}       -> {error, {read_error, File}}
+  end.
+
+all_same_time_division(Songs) ->
+  {midi, {_, TimeDivision, _}} = hd(Songs),
   Criteria = fun({midi, {_, TD, _}}) -> TD =:= TimeDivision end,
-  {Same, Different} = lists:partition(Criteria, Songs),
-  [{TimeDivision, [Pivot|Same]}|group(Different)].
+  lists:all(Criteria, Songs).
 
-analyze_frequencies({TimeDivision, Songs}, PrefixLength) ->
+-spec do_analyze(pos_integer(), [midi:song()]) -> analysis().
+do_analyze(PrefixLength, Songs) ->
+  {midi, {_, TimeDivision, _}} = hd(Songs),
+  Table = analyze_frequencies(PrefixLength, Songs),
+  {analysis, TimeDivision, Table}.
+
+analyze_frequencies(PrefixLength, Songs) ->
   Tracks = tracks(Songs),
-  Results = [analyze_track_frequencies(Track, PrefixLength) || Track <- Tracks],
-  {TimeDivision, merge(Results)}.
+  Tables = [analyze_track_frequencies(Track, PrefixLength) || Track <- Tracks],
+  merge(Tables).
 
 tracks(Songs) -> lists:flatten([ music_tracks(Song) || Song <- Songs ]).
 

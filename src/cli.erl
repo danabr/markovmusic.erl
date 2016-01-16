@@ -14,6 +14,7 @@ run_command({analyze, Opts, Files}) ->
       io:format("Analysis failed: ~p~n.", [E])
   end;
 run_command({generate, AnalysisFile, OutFile}) ->
+  random:seed(erlang:now()),
   case read_analysis_file(AnalysisFile) of
     {ok, Analysis} -> write_midi(OutFile, markovmusic:generate(Analysis));
     {error, _}     -> io:format("Failed to read analysis file.~n")

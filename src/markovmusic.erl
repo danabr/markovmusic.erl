@@ -99,7 +99,7 @@ invert_event(Event)                                                ->
 invert_note(N) ->
   NoteNumber = N rem 12,
   Octave = N - NoteNumber,
-  Octave + invert_note_number(NoteNumber).
+  invert_octave(Octave) + invert_note_number(NoteNumber).
 
 invert_note_number(0) -> 11;
 invert_note_number(1) -> 10;
@@ -113,3 +113,15 @@ invert_note_number(8) -> 3;
 invert_note_number(9) -> 2;
 invert_note_number(10) -> 1;
 invert_note_number(11) -> 0.
+
+invert_octave(0)   -> 120;
+invert_octave(12)  -> 108;
+invert_octave(24)  -> 96;
+invert_octave(36)  -> 84;
+invert_octave(48)  -> 72;
+invert_octave(60)  -> 60;
+invert_octave(72)  -> 48;
+invert_octave(84)  -> 36;
+invert_octave(96)  -> 24;
+invert_octave(108) -> 12;
+invert_octave(120) -> 0.

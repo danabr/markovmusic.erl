@@ -19,6 +19,7 @@
 -type controller_type() :: 0-127.
 -type controller_value() :: 0-127.
 -type program_number() :: 0-127.
+-type key_signature() :: binary().
 
 -export_type([ channel/0
              , controller_type/0
@@ -26,6 +27,7 @@
              , event/0
              , event_data/0
              , format/0
+             , key_signature/0
              , meta_event_type/0
              , note/0
              , offset/0
@@ -35,3 +37,21 @@
              , track/0
              , velocity/0
              ]).
+
+-export([ key_signature/1
+        ]).
+
+key_signature({midi, {_, _, Tracks}}) ->
+  key_signature_from_tracks(Tracks).
+
+key_signature_from_tracks([]) -> <<0,0>>;
+key_signature_from_tracks([{track, Events}|Tracks]) ->
+  case key_signature_from_events(Events) of
+    {ok, Signature}  -> Signature;
+    no_key_signature -> key_signature_from_tracks(Tracks)
+  end.
+
+key_signature_from_events([]) -> no_key_signature;
+key_signature_from_events([{event, _, {meta, 89, Sig}}|_]) -> {ok, Sig};
+key_signature_from_events([_|Events]) ->
+  key_signature_from_events(Events).

@@ -51,8 +51,8 @@ write_midi(OutFile, Song) ->
   end.
 parse_analysis_file(Bin) when is_binary(Bin) ->
   try binary_to_term(Bin) of
-    {analysis, _, _}=Analysis -> {ok, Analysis};
-    _                         -> {error, parse_error}
+    {analysis, _}=Analysis -> {ok, Analysis};
+    _                      -> {error, parse_error}
   catch
     _:badarg -> {error, parse_error}
   end.

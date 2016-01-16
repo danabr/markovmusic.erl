@@ -6,28 +6,35 @@
         , invert/1
         ]).
 
--type analysis() :: {analysis, midi:time_division(), prefix_table:table(_)}.
+-type alternative() :: {alternative, midi:time_division(),
+                        midi:key_signature(), prefix_table:table(_)}.
+-type analysis() :: {analysis, [alternative()]}.
 
 -spec analyze_files(pos_integer(), [string()]) ->
         {ok, analysis()} | {error, term()}.
 analyze_files(PrefixLength, [_|_]=Files) ->
   case load(Files) of
-    {ok, Songs}      -> analyze_songs(PrefixLength, Songs);
+    {ok, Songs}      -> {ok, analyze_songs(PrefixLength, Songs)};
     {error, _}=Error -> Error
   end.
 
--spec analyze_songs(pos_integer(), [midi:song()]) ->
-        {ok, analysis()} | {error, different_time_division}.
+-spec analyze_songs(pos_integer(), [midi:song()]) -> analysis().
 analyze_songs(PrefixLength, [_|_]=Songs) ->
-  case all_same_time_division(Songs) of
-    true  -> {ok, do_analyze(PrefixLength, Songs)};
-    false -> {error, different_time_division}
-  end.
+  Groups = group(Songs),
+  Alternatives = [analyze(PrefixLength, Group) || Group <- Groups],
+  {analysis, Alternatives}.
 
 -spec generate(analysis()) -> midi:song().
-generate({analysis, TimeDivision, PrefixTable}) ->
-  Events = prefix_table:generate_entries(PrefixTable),
-  {midi, {1, TimeDivision, [{track, Events}]}}.
+generate({analysis, Alternatives}) ->
+  Nth = random:uniform(length(Alternatives)),
+  SelectedAlternative = lists:nth(Nth, Alternatives),
+  {alternative, TimeDivision, KeySignature, Table} = SelectedAlternative,
+  MusicEvents = prefix_table:generate_entries(Table),
+  MetaEvents = [ {event, 0, {meta, 89, KeySignature}}
+               , {event, 0, {meta, 47, <<>>}}
+               ],
+  Tracks = [{track, MetaEvents}, {track, MusicEvents}],
+  {midi, {1, TimeDivision, Tracks}}.
 
 -spec invert(midi:song()) -> midi:song().
 invert({midi, {Format, TimeDivision, Tracks}}) ->
@@ -45,17 +52,30 @@ load([File|Files], Songs) ->
     {error, _}       -> {error, {read_error, File}}
   end.
 
-all_same_time_division(Songs) ->
-  {midi, {_, TimeDivision, _}} = hd(Songs),
-  Criteria = fun({midi, {_, TD, _}}) -> TD =:= TimeDivision end,
-  lists:all(Criteria, Songs).
+group(Songs) ->
+  SongsAndSignatures = [ {midi:key_signature(Song), Song} || Song <- Songs],
+  group_by_time_signature_and_key_signature(SongsAndSignatures).
 
--spec do_analyze(pos_integer(), [midi:song()]) -> analysis().
-do_analyze(PrefixLength, Songs) ->
-  {midi, {_, TimeDivision, _}} = hd(Songs),
+group_by_time_signature_and_key_signature([])            -> [];
+group_by_time_signature_and_key_signature([Pivot|Songs]) ->
+  {KeySignature, Song} = Pivot,
+  {midi, {_, TimeDivision, _}} = Song,
+  Matches = fun({KS, {midi, {_, TD, _}}}) ->
+              KS =:= KeySignature andalso TD =:= TimeDivision
+             end,
+  {Same, Different} = lists:partition(Matches, Songs),
+  SimilarSongs = [S || {_, S} <- Same],
+  Group = {TimeDivision, KeySignature, [Song|SimilarSongs]},
+  [Group|group_by_time_signature_and_key_signature(Different)].
+
+-spec analyze(pos_integer(), {midi:time_division(), midi:key_signature(),
+                              [midi:song()]}) -> alternative().
+analyze(PrefixLength, {TimeDivision, KeySignature, Songs}) ->
   Table = analyze_frequencies(PrefixLength, Songs),
-  {analysis, TimeDivision, Table}.
+  {alternative, TimeDivision, KeySignature, Table}.
 
+-spec analyze_frequencies(pos_integer(), [midi:song()]) ->
+  prefix_table:table(_).
 analyze_frequencies(PrefixLength, Songs) ->
   Tracks = tracks(Songs),
   Tables = [analyze_track_frequencies(Track, PrefixLength) || Track <- Tracks],

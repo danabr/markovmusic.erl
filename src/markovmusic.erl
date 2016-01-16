@@ -88,11 +88,14 @@ invert_track({track, Events}) ->
 
 invert_event({event, Offset, {note_on, Channel, Note, Velocity}})  ->
   NewNote = invert_note(Note),
-  io:format("~p -> ~p~n", [Note, NewNote]),
   {event, Offset, {note_on, Channel, NewNote, Velocity}};
 invert_event({event, Offset, {note_off, Channel, Note, Velocity}}) ->
   NewNote = invert_note(Note),
   {event, Offset, {note_off, Channel, NewNote, Velocity}};
+invert_event({event, Offset, {meta, 89, <<SF:8/signed, MajMin>>}}) ->
+  % Deal with sharps and flats
+  Neg = 0 - SF,
+  {event, Offset, {meta, 89, <<Neg:8/signed, MajMin>>}};
 invert_event(Event)                                                ->
   Event.
 

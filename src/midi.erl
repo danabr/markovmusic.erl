@@ -6,20 +6,22 @@
 -type track() :: {track, [event()]}.
 -type event() :: {event, offset(), event_data()}.
 -type event_data() :: {meta, meta_event_type(), Data::binary()} |
-                      {note_off, channel(), note(), velocity()} |
-                      {note_on, channel(), note(), velocity()} |
+                      {note_off, channel(), key(), velocity()} |
+                      {note_on, channel(), key(), velocity()} |
                       {controller_event, channel(), controller_type(),
                                          controller_value()} |
                       {program_change, channel(), program_number()}.
 -type offset() :: non_neg_integer().
 -type meta_event_type() :: byte().
 -type channel() :: 0-15.
--type note() :: 0-127.
+-type key() :: 0-127.
 -type velocity() :: 0-127.
 -type controller_type() :: 0-127.
 -type controller_value() :: 0-127.
 -type program_number() :: 0-127.
 -type key_signature() :: binary().
+
+-type note() :: {note, Key::non_neg_integer(), Duration::non_neg_integer()}.
 
 -export_type([ channel/0
              , controller_type/0
@@ -52,6 +54,7 @@ key_signature({midi, {_, _, Tracks}}) ->
 music_tracks({midi, {_, _, Tracks}}) ->
   lists:filter(fun is_music_track/1, Tracks).
 
+-spec from_notes([note()], time_division(), key_signature()) -> song().
 from_notes(Notes, TimeSignature, KeySignature) ->
   End = {event, 0, {meta, 47, <<>>}},
   Events = notes_to_events(Notes) ++ [End],
@@ -62,6 +65,7 @@ from_notes(Notes, TimeSignature, KeySignature) ->
   MetaTrack = {track, MetaEvents},
   {midi, {1, TimeSignature, [MetaTrack, MelodyTrack]}}.
 
+-spec notes(song()) -> [note()].
 notes({midi, _}=Song) ->
   MusicTrack = hd(music_tracks(Song)),
   notes_from_track(MusicTrack).

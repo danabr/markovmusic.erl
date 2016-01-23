@@ -7,7 +7,7 @@
         ]).
 
 -type alternative() :: {alternative, midi:time_division(),
-                        midi:key_signature(), prefix_table:table(_)}.
+                        midi:key_signature(), markov_table:table(_)}.
 -type analysis() :: {analysis, [alternative()]}.
 
 -spec analyze_files(pos_integer(), [string()]) ->
@@ -29,7 +29,7 @@ generate({analysis, Alternatives}) ->
   Nth = random:uniform(length(Alternatives)),
   SelectedAlternative = lists:nth(Nth, Alternatives),
   {alternative, TimeDivision, KeySignature, Table} = SelectedAlternative,
-  MusicEvents = prefix_table:generate_entries(Table),
+  MusicEvents = markov_table:generate_entries(Table),
   MetaEvents = [ {event, 0, {meta, 89, KeySignature}}
                , {event, 0, {meta, 47, <<>>}}
                ],
@@ -75,7 +75,7 @@ analyze(PrefixLength, {TimeDivision, KeySignature, Songs}) ->
   {alternative, TimeDivision, KeySignature, Table}.
 
 -spec analyze_frequencies(pos_integer(), [midi:song()]) ->
-  prefix_table:table(_).
+  markov_table:table(_).
 analyze_frequencies(PrefixLength, Songs) ->
   Tracks = tracks(Songs),
   Tables = [analyze_track_frequencies(Track, PrefixLength) || Track <- Tracks],
@@ -84,14 +84,14 @@ analyze_frequencies(PrefixLength, Songs) ->
 tracks(Songs) -> lists:flatten([ midi:music_tracks(Song) || Song <- Songs ]).
 
 analyze_track_frequencies({track, Events}, PrefixLength) ->
-  Table0 = prefix_table:new(PrefixLength),
-  FoldF = fun(Event, Table) -> prefix_table:add(Table, Event) end,
+  Table0 = markov_table:new(PrefixLength),
+  FoldF = fun(Event, Table) -> markov_table:add(Table, Event) end,
   Table = lists:foldl(FoldF, Table0, filter_events(Events)),
-  prefix_table:finish(Table).
+  markov_table:finish(Table).
 
 merge([])             -> [];
 merge([Table|Tables]) ->
-  lists:foldl(fun prefix_table:merge/2, Table, Tables).
+  lists:foldl(fun markov_table:merge/2, Table, Tables).
 
 filter_events([]) -> [];
 filter_events([{event, O, {meta, 5, _}}|Events]) ->

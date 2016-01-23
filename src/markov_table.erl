@@ -1,7 +1,7 @@
--module(prefix_table).
+-module(markov_table).
 
--define(START_ENTRY, '__prefix_table_start__').
--define(STOP_ENTRY, '__prefix_table_stop__').
+-define(START_ENTRY, '__markov_table_start__').
+-define(STOP_ENTRY, '__markov_table_stop__').
 
 %% Dialyzer doesn't properly support maps, so we are using dicts.
 -opaque table(_Entry) :: {pos_integer(), list(), dict:dict()}.

@@ -39,10 +39,25 @@
              ]).
 
 -export([ key_signature/1
+        , music_tracks/1
         ]).
 
+-spec key_signature(song()) -> key_signature().
 key_signature({midi, {_, _, Tracks}}) ->
   key_signature_from_tracks(Tracks).
+
+-spec music_tracks(song()) -> [track()].
+music_tracks({midi, {_, _, Tracks}}) ->
+  lists:filter(fun is_music_track/1, Tracks).
+
+%% Internal
+
+is_music_track({track, Events}) ->
+  Filter = fun({event, _, {note_on, _, _, _}}) -> true;
+              (_)                              -> false
+           end,
+  lists:any(Filter, Events).
+
 
 key_signature_from_tracks([]) -> <<0,0>>;
 key_signature_from_tracks([{track, Events}|Tracks]) ->

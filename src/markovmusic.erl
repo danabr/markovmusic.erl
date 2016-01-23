@@ -81,27 +81,23 @@ analyze_frequencies(PrefixLength, Songs) ->
   Tables = [analyze_track_frequencies(Track, PrefixLength) || Track <- Tracks],
   merge(Tables).
 
-tracks(Songs) -> lists:flatten([ music_tracks(Song) || Song <- Songs ]).
-
-music_tracks({midi, {_, _, Tracks}}) ->
-  lists:filter(fun is_music_track/1, Tracks).
-
-is_music_track({track, Events}) ->
-  Filter = fun({event, _, {note_on, _, _, _}}) -> true;
-              (_)                              -> false
-           end,
-  lists:any(Filter, Events).
+tracks(Songs) -> lists:flatten([ midi:music_tracks(Song) || Song <- Songs ]).
 
 analyze_track_frequencies({track, Events}, PrefixLength) ->
   Table0 = prefix_table:new(PrefixLength),
   FoldF = fun(Event, Table) -> prefix_table:add(Table, Event) end,
-  Table = lists:foldl(FoldF, Table0, Events),
+  Table = lists:foldl(FoldF, Table0, filter_events(Events)),
   prefix_table:finish(Table).
 
 merge([])             -> [];
 merge([Table|Tables]) ->
   lists:foldl(fun prefix_table:merge/2, Table, Tables).
 
+filter_events([]) -> [];
+filter_events([{event, O, {meta, 5, _}}|Events]) ->
+  [{event, O, {meta, 5, <<>>}}|filter_events(Events)];
+filter_events([Event|Events]) ->
+  [Event|filter_events(Events)].
 
 invert_track({track, Events}) ->
   {track, lists:map(fun invert_event/1, Events)}.

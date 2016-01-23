@@ -38,8 +38,10 @@
              , velocity/0
              ]).
 
--export([ key_signature/1
+-export([ from_notes/3
+        , key_signature/1
         , music_tracks/1
+        , notes/1
         ]).
 
 -spec key_signature(song()) -> key_signature().
@@ -49,6 +51,20 @@ key_signature({midi, {_, _, Tracks}}) ->
 -spec music_tracks(song()) -> [track()].
 music_tracks({midi, {_, _, Tracks}}) ->
   lists:filter(fun is_music_track/1, Tracks).
+
+from_notes(Notes, TimeSignature, KeySignature) ->
+  End = {event, 0, {meta, 47, <<>>}},
+  Events = notes_to_events(Notes) ++ [End],
+  MelodyTrack = {track, Events},
+  MetaEvents = [ {event, 0, {meta, 89, KeySignature}}
+               , End
+               ],
+  MetaTrack = {track, MetaEvents},
+  {midi, {1, TimeSignature, [MetaTrack, MelodyTrack]}}.
+
+notes({midi, _}=Song) ->
+  MusicTrack = hd(music_tracks(Song)),
+  notes_from_track(MusicTrack).
 
 %% Internal
 
@@ -70,3 +86,34 @@ key_signature_from_events([]) -> no_key_signature;
 key_signature_from_events([{event, _, {meta, 89, Sig}}|_]) -> {ok, Sig};
 key_signature_from_events([_|Events]) ->
   key_signature_from_events(Events).
+
+notes_to_events([]) -> [];
+notes_to_events([{note, N, O}|Notes]) ->
+  [ {event, 0, {note_on, 0, N, 110}}
+  , {event, O, {note_off, 0, N, 0}}
+  | notes_to_events(Notes)
+  ].
+
+notes_from_track({track, Events}) ->
+  notes_from_events(note_events(Events)).
+
+%% FIXME: Handle note_off events.
+notes_from_events([])-> [];
+notes_from_events([ {event, _, {note_on, C, N, _V}}
+                  , {event, Length, {note_on, C, N, 0}}
+                  ]) ->
+  [{note, N, Length}];
+notes_from_events([ {event, _, {note_on, C, N, _V}}
+                  , {event, Length, {note_on, C, N, 0}}
+                  , {event, Pause, {note_on, _, _, _}}=Next
+                  | Events
+                  ]) ->
+  Total = Length+Pause,
+  [{note, N, Total}|notes_from_events([Next|Events])].
+
+note_events(Events) ->
+  Filter = fun({event, _, {E, _, _, _}}) -> E =:= note_off orelse E =:= note_on;
+               (_Event)                  -> false
+           end,
+  lists:filter(Filter, Events).
+

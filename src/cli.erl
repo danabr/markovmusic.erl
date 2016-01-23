@@ -3,7 +3,13 @@
 -export([main/1]).
 
 main(Args) ->
-  run_command(parse_args(Args)).
+  try run_command(parse_args(Args))
+  catch
+    throw:{read_error, File} ->
+      io:format("Failed to read ~s.~n", [File]);
+    throw:{parse_error, File} ->
+      io:format("Failed to parse ~s as a MIDI file.~n", [File])
+  end.
 
 run_command({analyze, Opts, Files}) ->
   PrefixLength = proplists:get_value(prefix_length, Opts, 4),
@@ -23,10 +29,22 @@ run_command({invert, MidiFile, OutFile})       ->
   {ok, Song} = midi_parse:file(MidiFile),
   Inverted = markovmusic:invert(Song),
   write_midi(OutFile, Inverted);
+run_command({retrofit, MelodyFile, TempoFile, OutFile}) ->
+  Melody = open_song(MelodyFile),
+  Tempo = open_song(TempoFile),
+  Song = retrofit:song(Melody,  Tempo),
+  write_midi(OutFile, Song);
 run_command({help, undefined})                 -> print_usage();
 run_command({help, Error}) when is_list(Error) ->
   io:format("Error: ~s~n", [Error]),
   print_usage().
+
+open_song(File) ->
+  case midi_parse:file(File) of
+    {ok, Song}       -> Song;
+    {parse_error, _} -> throw({parse_error, File});
+    {error, _}       -> throw({read_error, File})
+  end.
 
 write_analysis_file(OutFile, Analysis) ->
   Bin = term_to_binary(Analysis),
@@ -57,24 +75,22 @@ parse_analysis_file(Bin) when is_binary(Bin) ->
     _:badarg -> {error, parse_error}
   end.
 
-parse_args(["analyze"|Args])                       ->
+parse_args(["analyze"|Args])                            ->
   case analyze_args(Args, []) of
     {error, Error}      -> help(Error);
     {ok, {Opts, Files}} -> {analyze, Opts, Files}
   end;
-parse_args(["generate", AnalysisFile, OutFile])    ->
+parse_args(["generate", AnalysisFile, OutFile])         ->
   {generate, AnalysisFile, OutFile};
-parse_args(["generate"|_])                         ->
-  help();
-parse_args(["invert", MidiFile, OutFile])          ->
+parse_args(["invert", MidiFile, OutFile])               ->
   {invert, MidiFile, OutFile};
-parse_args([A|_])                                  ->
-  help("Unknwon command " ++ A);
-parse_args([])                                     ->
+parse_args(["retrofit", MusicFile, TempoFile, OutFile]) ->
+  {retrofit, MusicFile, TempoFile, OutFile};
+parse_args(_)                                           ->
   help().
 
 analyze_args(["--prefix-length", LengthStr | Args], Opts) ->
-  try  
+  try
     Length = list_to_integer(LengthStr),
     case Length > 0 of
       false -> throw(badarg);
@@ -103,6 +119,7 @@ print_usage() ->
                          " [--out <analysis-file>] <midi files>"
           , program() ++ " generate <analysis-file> <output-file>"
           , program() ++ " invert <midi-file> <output-file>"
+          , program() ++ " retrofit <melody-file> <tempo-file> <out-file>"
           ],
   Print = fun(Line) -> io:format("~s~n", [Line]) end,
   lists:foreach(Print, Lines).
